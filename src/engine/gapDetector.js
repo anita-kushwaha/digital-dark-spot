@@ -1,113 +1,168 @@
 /**
  * GAP DETECTOR ENGINE
- * Analyzes multiple sources to identify missing dimensions, silent omissions,
- * and unanswered critical questions.
+ * Analyzes multi-source text content to identify critical missing information,
+ * silent omissions, and unanswered investigative questions.
  * 
- * IMPORTANT: All findings are distinctly labeled as [AI HYPOTHESIZED GAP]
- * so users can clearly differentiate inferred questions from source facts.
+ * TRANSPARENCY PRINCIPLE:
+ * Uses transparent, deterministic keyword & entity pattern matching.
+ * Never claims an AI model is used unless the optional Gemini API is active.
+ * Clearly separates partial source mentions from completely absent evidence.
  */
 
-// Core investigative dimensions every thorough topic should cover
-const TOPIC_DIMENSIONS = [
+// Core investigative dimensions required for thorough analysis
+const INVESTIGATIVE_DIMENSIONS = [
   {
-    category: "Cost, Budget & Liability",
-    keywords: ["cost", "budget", "price", "billion", "million", "funding", "expense", "penalty", "liable", "financial"],
-    gapQuestionTemplate: "What is the total committed budget, cost overrun risk, or financial liability if deadlines or milestones fail?",
-    whyItMatters: "Without financial disclosure or penalty clarity, cost overruns and funding cancellations can remain concealed."
+    category: "Cost, Budget & Financial Liability",
+    dimensionKey: "financial",
+    keywords: ["cost", "budget", "price", "billion", "million", "funding", "expense", "penalty", "liable", "liability", "expenditure", "award", "contract"],
+    gapQuestion: "What is the total committed budget, cost overrun risk, or financial liability if deadlines or milestones fail?",
+    whyItMatters: "Without financial disclosure or penalty clarity, cost overruns and funding cancellations can remain concealed from public or stakeholder oversight.",
+    suggestedInvestigation: "Review official government budget requests, SEC 10-K filings, contractor award ceilings, or public audit reports."
   },
   {
-    category: "Operational Safety & Contingency Abort",
-    keywords: ["abort", "emergency", "contingency", "evacuation", "hazard", "risk", "failure", "malfunction", "failsafe", "safety"],
-    gapQuestionTemplate: "What contingency or emergency abort protocol exists if the primary system fails during critical execution?",
-    whyItMatters: "Optimistic source reports frequently omit secondary failure scenarios and human/environmental safety reserves."
+    category: "Operational Safety & Contingency Protocols",
+    dimensionKey: "safety",
+    keywords: ["abort", "emergency", "contingency", "evacuation", "hazard", "risk", "failure", "malfunction", "failsafe", "safety", "egress", "redundancy"],
+    gapQuestion: "What contingency or emergency abort protocol exists if the primary system fails during critical execution?",
+    whyItMatters: "Promotional or preliminary reports frequently focus on ideal operational scenarios, omitting secondary failure modes and emergency reserves.",
+    suggestedInvestigation: "Consult independent safety advisory panel briefings, technical failure mode analyses (FMEA), or emergency operating procedures."
   },
   {
-    category: "Environmental & Demographic Edge Cases",
-    keywords: ["temperature", "extreme", "environment", "radiation", "demographic", "pediatric", "minority", "gender", "climate", "degradation"],
-    gapQuestionTemplate: "How does the system perform under extreme boundary conditions, non-standard environments, or unrepresented demographics?",
-    whyItMatters: "Systems often pass benign laboratory tests but fail catastrophically in harsh real-world edge cases."
+    category: "Environmental & Demographic Boundary Conditions",
+    dimensionKey: "environment",
+    keywords: ["temperature", "extreme", "environment", "radiation", "demographic", "pediatric", "minority", "gender", "climate", "degradation", "cold", "heat", "weather"],
+    gapQuestion: "How does the system perform under extreme boundary conditions, non-standard environments, or unrepresented demographics?",
+    whyItMatters: "Systems often demonstrate high performance in benign laboratory environments but encounter severe degradation or failure in harsh real-world conditions.",
+    suggestedInvestigation: "Request empirical testing logs under non-ideal parameters (e.g. thermal extremes, diverse patient cohorts, or long-term operational wear)."
   },
   {
-    category: "Independent Verification & Methodology",
-    keywords: ["independent", "blinded", "audit", "methodology", "peer-reviewed", "replication", "sample size", "protocol", "verification"],
-    gapQuestionTemplate: "Has the methodology and dataset been independently replicated or audited by a neutral third party?",
-    whyItMatters: "Single-vendor or self-reported milestones lack objective validation and are subject to bias."
+    category: "Independent Third-Party Verification & Methodology",
+    dimensionKey: "verification",
+    keywords: ["independent", "blinded", "audit", "methodology", "peer-reviewed", "replication", "sample size", "protocol", "verification", "external", "oversight"],
+    gapQuestion: "Has the methodology and dataset been independently replicated or audited by a neutral third party?",
+    whyItMatters: "Single-vendor or self-reported milestones lack neutral validation and have a high historical rate of selection bias.",
+    suggestedInvestigation: "Search for peer-reviewed journal replications, government agency audits (e.g. GAO, FDA, DoE), or independent testing laboratory certifications."
   },
   {
-    category: "Governance, Regulation & Legal Compliance",
-    keywords: ["fda", "regulation", "compliance", "law", "statutory", "oversight", "license", "approval", "policy", "standards"],
-    gapQuestionTemplate: "What formal regulatory approvals, compliance certifications, or legal frameworks are pending or unfulfilled?",
-    whyItMatters: "Unresolved regulatory milestones can prevent deployment regardless of technical readiness."
+    category: "Regulatory Approvals & Statutory Compliance",
+    dimensionKey: "regulatory",
+    keywords: ["fda", "regulation", "compliance", "law", "statutory", "oversight", "license", "approval", "policy", "standards", "certification", "cleared"],
+    gapQuestion: "What formal statutory clearances, regulatory licenses, or legal compliance certifications remain pending or unfulfilled?",
+    whyItMatters: "Unfulfilled regulatory milestones or safety certifications can halt operational deployment regardless of technical readiness.",
+    suggestedInvestigation: "Inspect regulatory agency public dockets, certification registry databases, or legislative oversight hearing transcripts."
   }
 ];
 
 export function detectInformationGaps(sources, topicTitle = "") {
   if (!sources || sources.length === 0) return [];
 
-  const combinedText = sources.map(s => s.content.toLowerCase()).join(" ");
   const gaps = [];
 
-  // 1. Domain Heuristic Missing Dimension Analysis
-  TOPIC_DIMENSIONS.forEach(dim => {
-    const matchCount = dim.keywords.filter(kw => combinedText.includes(kw)).length;
-    
-    // If fewer than 2 keywords match, this dimension represents a digital dark spot
-    if (matchCount < 2) {
+  // Analyze each source individually and combined
+  const sourceAnalyses = sources.map(s => {
+    const textLower = (s.content || "").toLowerCase();
+    const sentences = (s.content || "").split(/(?<=[.?!])\s+/).filter(st => st.trim().length > 10);
+    return {
+      sourceId: s.id,
+      title: s.title,
+      textLower,
+      sentences
+    };
+  });
+
+  const combinedText = sourceAnalyses.map(sa => sa.textLower).join(" ");
+
+  // 1. Analyze Core Dimensions
+  INVESTIGATIVE_DIMENSIONS.forEach(dim => {
+    // Find matching sentences across all sources
+    const matchingSentences = [];
+    const matchingSources = [];
+
+    sourceAnalyses.forEach(sa => {
+      const hits = sa.sentences.filter(sentence => {
+        const lower = sentence.toLowerCase();
+        return dim.keywords.some(kw => lower.includes(kw));
+      });
+
+      if (hits.length > 0) {
+        matchingSources.push(sa.title);
+        hits.forEach(h => matchingSentences.push({ sourceTitle: sa.title, text: h.trim() }));
+      }
+    });
+
+    const isFullyCovered = matchingSentences.length >= 3 && matchingSources.length >= 2;
+
+    if (!isFullyCovered) {
+      const isPartiallyMentioned = matchingSentences.length > 0;
+
       gaps.push({
-        id: `gap-${dim.category.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-        type: "AI_HYPOTHESIZED_GAP",
-        badge: "AI HYPOTHESIZED GAP",
+        id: `gap-${dim.dimensionKey}`,
+        type: "INFORMATION_GAP",
+        badge: isPartiallyMentioned ? "PARTIALLY UNADDRESSED GAP" : "CRITICAL MISSING GAP",
         category: dim.category,
-        urgency: matchCount === 0 ? "High" : "Medium",
-        unansweredQuestion: dim.gapQuestionTemplate,
+        urgency: isPartiallyMentioned ? "Medium" : "High",
+        unansweredQuestion: dim.gapQuestion,
         whyItMatters: dim.whyItMatters,
+        evidenceStatus: isPartiallyMentioned ? "partial" : "missing",
+        evidenceSummary: isPartiallyMentioned
+          ? `Mentioned briefly in ${matchingSources.length} source(s), but lacks comprehensive operational detail or contingency guarantees.`
+          : `No supporting evidence found in any of the ${sources.length} supplied source(s).`,
+        supportingEvidenceSnippet: isPartiallyMentioned && matchingSentences.length > 0
+          ? `"${matchingSentences[0].text}" — (${matchingSentences[0].sourceTitle})`
+          : null,
         affectedSources: sources.map(s => s.title),
-        suggestedInvestigation: `Query official audit registries, primary regulatory filings, or independent technical safety boards regarding ${dim.category.toLowerCase()}.`,
+        suggestedInvestigation: dim.suggestedInvestigation,
         isGroundedInSource: false,
-        aiRationale: `None of the ${sources.length} provided sources adequately address '${dim.category}'. Key operational indicators (${dim.keywords.slice(0, 4).join(', ')}) are absent from the provided text.`
+        detectionMethod: "Deterministic Keyword & Coverage Analysis"
       });
     }
   });
 
-  // 2. Specific contextual gap heuristics
-  // Check if dates exist in future with no milestone roadmap
-  const hasFutureYear = /\b(202[6-9]|203[0-9])\b/.test(combinedText);
-  const hasMilestoneStep = combinedText.includes("milestone") || combinedText.includes("roadmap") || combinedText.includes("quarter");
-  if (hasFutureYear && !hasMilestoneStep) {
+  // 2. Analyze Timeline Gap: Does the topic involve future targets without roadmap stages?
+  const futureYearMatches = combinedText.match(/\b(202[6-9]|203[0-9])\b/g);
+  const milestoneMentions = combinedText.match(/\b(quarter|milestone|phase|review|cdr|pdr|q[1-4])\b/gi);
+
+  if (futureYearMatches && (!milestoneMentions || milestoneMentions.length < 2)) {
     gaps.push({
-      id: "gap-future-roadmap",
-      type: "AI_HYPOTHESIZED_GAP",
-      badge: "AI HYPOTHESIZED GAP",
-      category: "Milestone Roadmap & Intermediate Validation",
+      id: "gap-timeline-milestones",
+      type: "INFORMATION_GAP",
+      badge: "SCHEDULE ROADMAP GAP",
+      category: "Milestone Transparency & Phasing",
       urgency: "Medium",
-      unansweredQuestion: "What measurable quarterly checkpoints exist between current status and projected target years?",
-      whyItMatters: "Projections extending past 2026 without documented intermediate stages represent unverified speculative targets.",
+      unansweredQuestion: `Future target dates (${Array.from(new Set(futureYearMatches)).join(', ')}) are stated, but what intermediate validation checkpoints must be met first?`,
+      whyItMatters: "Projections extending several years ahead without public intermediate stage criteria often obscure underlying schedule slippage.",
+      evidenceStatus: "partial",
+      evidenceSummary: "Target delivery years are asserted, but granular progress benchmarks or intermediate test criteria are omitted across all sources.",
+      supportingEvidenceSnippet: null,
       affectedSources: sources.map(s => s.title),
-      suggestedInvestigation: "Review contractor milestone review deliverables and engineering critical design review (CDR) minutes.",
+      suggestedInvestigation: "Request official master milestone schedule documents or critical path schedule reviews (CPR).",
       isGroundedInSource: false,
-      aiRationale: "Future delivery dates are cited, but granular intermediate milestones are omitted across all sources."
+      detectionMethod: "Temporal Projection Analysis"
     });
   }
 
-  // Check for vendor-only risk (if only self-reported sources exist)
-  const nonVendorSources = sources.filter(s => 
-    (s.reliabilityTier && !s.reliabilityTier.toLowerCase().includes("commercial")) &&
-    (s.reliabilityTier && !s.reliabilityTier.toLowerCase().includes("self-reported"))
+  // 3. Single-Perspective / Vendor Bias Gap
+  const isAllCommercial = sources.length > 1 && sources.every(s => 
+    (s.reliabilityTier || "").toLowerCase().includes("commercial") ||
+    (s.reliabilityTier || "").toLowerCase().includes("self-reported")
   );
 
-  if (sources.length > 0 && nonVendorSources.length === 0) {
+  if (isAllCommercial) {
     gaps.push({
-      id: "gap-neutral-validation",
-      type: "AI_HYPOTHESIZED_GAP",
-      badge: "CRITICAL PERSPECTIVE GAP",
-      category: "Independent Validation Deficit",
+      id: "gap-neutral-perspective",
+      type: "INFORMATION_GAP",
+      badge: "SOURCE DIVERSITY DEFICIT",
+      category: "Independent Verification Deficit",
       urgency: "High",
-      unansweredQuestion: "Where is the peer-reviewed, independent validation or third-party audit for these claims?",
-      whyItMatters: "All provided sources are vendor self-reports. There is a total blind spot regarding objective confirmation.",
+      unansweredQuestion: "Where is the objective third-party evaluation or adversarial testing confirming these manufacturer claims?",
+      whyItMatters: "All provided sources originate from commercial self-reports. There is an absolute blind spot regarding neutral, unconflicted evaluation.",
+      evidenceStatus: "missing",
+      evidenceSummary: `All ${sources.length} sources belong to vendor or commercial self-reported tiers. Zero independent audit documents supplied.`,
+      supportingEvidenceSnippet: null,
       affectedSources: sources.map(s => s.title),
-      suggestedInvestigation: "Consult academic journals, government inspection records, or consumer watchdog reviews.",
+      suggestedInvestigation: "Ingest academic peer-reviewed papers, regulatory testing records, or oversight audits to establish balance.",
       isGroundedInSource: false,
-      aiRationale: "Every source in the dataset is authored or published by the claiming entity itself."
+      detectionMethod: "Source Metadata & Tier Audit"
     });
   }
 

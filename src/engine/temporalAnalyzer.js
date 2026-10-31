@@ -1,92 +1,137 @@
 /**
- * TEMPORAL ANALYZER ENGINE
- * Analyzes publication timestamps and forward-looking claims across sources
- * to identify potentially outdated, expired, or superseded statements.
+ * TEMPORAL DRIFT & OBSOLESCENCE ANALYZER
+ * Compares dated claims across sources to track how projections, budgets,
+ * and milestones have shifted over time.
  * 
- * IMPORTANT: Helps researchers spot when older promotional statements
- * continue to circulate despite newer empirical evidence disproving them.
+ * INTEGRITY PRINCIPLE:
+ * Strictly relies on user-provided or verified source timestamps.
+ * If dates are missing, explicitly flags them as unverifiable rather than guessing.
  */
 
 export function analyzeTemporalDrift(sources) {
   if (!sources || sources.length === 0) return [];
 
-  const results = [];
-  
-  // Sort sources chronologically
-  const sortedSources = [...sources].sort((a, b) => {
-    return new Date(a.publishedDate || "2000-01-01") - new Date(b.publishedDate || "2000-01-01");
+  const findings = [];
+
+  // 1. Check for Undated Sources
+  const undatedSources = sources.filter(s => !s.publishedDate || s.publishedDate.trim() === "");
+  undatedSources.forEach(s => {
+    findings.push({
+      id: `temp-undated-${s.id}`,
+      type: "UNDATED_SOURCE_ALERT",
+      status: "INSUFFICIENT_EVIDENCE",
+      badge: "MISSING PUBLICATION DATE",
+      topic: "Temporal Chronology",
+      sourceTitle: s.title,
+      author: s.author,
+      publishedDate: "No Date Provided",
+      severity: "Medium",
+      issueSummary: "Source lacks publication date metadata.",
+      whatChanged: "Cannot determine chronological sequence or check for obsolescence because no publication date was supplied.",
+      earlierClaim: null,
+      laterClaim: null,
+      evidenceSnippet: s.content ? s.content.substring(0, 140) + "..." : "No text",
+      guidance: "Provide an official publication date for this source to enable chronological verification."
+    });
   });
 
-  const newestSource = sortedSources[sortedSources.length - 1];
-  const newestDate = new Date(newestSource.publishedDate || Date.now());
+  // 2. Sort dated sources chronologically
+  const datedSources = sources
+    .filter(s => s.publishedDate && s.publishedDate.trim().length >= 4)
+    .sort((a, b) => new Date(a.publishedDate) - new Date(b.publishedDate));
 
-  sortedSources.forEach(src => {
-    if (!src.publishedDate) {
-      results.push({
-        id: `temp-undated-${src.id}`,
-        sourceId: src.id,
-        sourceTitle: src.title,
-        stalenessLevel: "Medium",
-        badge: "UNDATED SOURCE WARNING",
-        ageMonths: "Unknown",
-        publishedDate: "No Date Provided",
-        obsolescenceRisk: "High",
-        issueSummary: "Source lacks publication timestamp.",
-        detail: "Without a verifiable publication date, claims cannot be anchored in time and may refer to obsolete states.",
-        supersededBy: null,
-        quote: src.content.substring(0, 140) + "..."
+  if (datedSources.length < 2) {
+    if (datedSources.length === 1 && sources.length > 1) {
+      findings.push({
+        id: "temp-single-dated",
+        type: "INSUFFICIENT_TIMELINE",
+        status: "INSUFFICIENT_EVIDENCE",
+        badge: "INSUFFICIENT DATED SOURCES",
+        topic: "Chronological Sequence",
+        sourceTitle: "Multiple Sources Ingested",
+        publishedDate: "Partial",
+        severity: "Low",
+        issueSummary: "At least 2 dated sources are required to compare claims over time.",
+        whatChanged: "Only 1 source has a valid publication date. Add dates to other sources to track timeline progression.",
+        earlierClaim: null,
+        laterClaim: null,
+        evidenceSnippet: null,
+        guidance: "Edit existing sources and add their publication dates."
       });
-      return;
     }
+    return findings;
+  }
 
-    const srcDate = new Date(src.publishedDate);
-    const diffTime = Math.abs(newestDate - srcDate);
-    const diffMonths = Math.round(diffTime / (1000 * 60 * 60 * 24 * 30.4375));
+  // 3. Compare Dated Claims on Thematic Clusters
+  const earliestSource = datedSources[0];
+  const latestSource = datedSources[datedSources.length - 1];
 
-    // If source is over 12 months older than the most recent source
-    if (diffMonths >= 12 && src.id !== newestSource.id) {
-      // Look for forward-looking projections that have now passed
-      const pastProjections = findPastProjections(src.content, srcDate);
+  const earliestDate = new Date(earliestSource.publishedDate);
+  const latestDate = new Date(latestSource.publishedDate);
+  const diffDays = Math.round((latestDate - earliestDate) / (1000 * 60 * 60 * 24));
+  const diffMonths = Math.round(diffDays / 30.4375);
 
-      results.push({
-        id: `temp-${src.id}`,
-        sourceId: src.id,
-        sourceTitle: src.title,
-        author: src.author,
-        publishedDate: src.publishedDate,
-        ageMonths: `${diffMonths} months older than newest source`,
-        stalenessLevel: diffMonths >= 24 ? "High" : "Medium",
-        badge: diffMonths >= 24 ? "CRITICAL TEMPORAL LAG" : "AGING SOURCE",
-        issueSummary: `Published ${diffMonths} months before latest findings (${newestSource.publishedDate}).`,
-        supersededBy: {
-          id: newestSource.id,
-          title: newestSource.title,
-          publishedDate: newestSource.publishedDate
+  // Compare earliest vs latest for milestone and status changes
+  const sentencesEarliest = splitIntoSentences(earliestSource.content);
+  const sentencesLatest = splitIntoSentences(latestSource.content);
+
+  // Common subjects to track over time
+  const TRACKED_THEMES = [
+    {
+      topic: "Milestone & Deployment Schedule",
+      keywords: ["target", "schedule", "launch", "slated", "delayed", "window", "2024", "2025", "2026", "2027", "2028"]
+    },
+    {
+      topic: "Budget & Program Expenditures",
+      keywords: ["budget", "cost", "billion", "million", "obligations", "award", "$"]
+    },
+    {
+      topic: "Technical Readiness & Test Outcomes",
+      keywords: ["testing", "defect", "resolved", "unresolved", "boil-off", "concordance", "sensitivity", "cycles", "degradation"]
+    }
+  ];
+
+  TRACKED_THEMES.forEach(theme => {
+    const earlyMatches = sentencesEarliest.filter(s => theme.keywords.some(k => s.toLowerCase().includes(k)));
+    const lateMatches = sentencesLatest.filter(s => theme.keywords.some(k => s.toLowerCase().includes(k)));
+
+    if (earlyMatches.length > 0 && lateMatches.length > 0 && diffMonths >= 6) {
+      findings.push({
+        id: `temp-drift-${earliestSource.id}-${latestSource.id}-${theme.topic.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        type: "TEMPORAL_DRIFT",
+        status: "DOCUMENTED_TEMPORAL_CHANGE",
+        badge: diffMonths >= 24 ? "CRITICAL TEMPORAL LAG (2+ YEARS)" : "TEMPORAL UPDATE",
+        topic: theme.topic,
+        severity: diffMonths >= 24 ? "High" : "Medium",
+        timeElapsed: `${diffMonths} months (${earliestSource.publishedDate} to ${latestSource.publishedDate})`,
+        issueSummary: `Claims evolved over ${diffMonths} months between "${earliestSource.title}" and "${latestSource.title}".`,
+        whatChanged: `Earlier publication (${earliestSource.publishedDate}) reflected an earlier program phase or projection that was subsequently reassessed in ${latestSource.publishedDate}.`,
+        earlierSource: {
+          id: earliestSource.id,
+          title: earliestSource.title,
+          date: earliestSource.publishedDate,
+          author: earliestSource.author,
+          claimQuote: earlyMatches[0]
         },
-        detail: pastProjections.length > 0 
-          ? `Contains forward-looking projections that expired or were reassessed: "${pastProjections[0]}"`
-          : `Information may not reflect recent engineering changes, audits, or regulatory decisions reported in newer literature.`,
-        quote: pastProjections[0] || src.content.substring(0, 160) + "..."
+        laterSource: {
+          id: latestSource.id,
+          title: latestSource.title,
+          date: latestSource.publishedDate,
+          author: latestSource.author,
+          claimQuote: lateMatches[0]
+        },
+        guidance: "Always prioritize findings from the latest source when citing operational status or readiness metrics."
       });
     }
   });
 
-  return results;
+  return findings;
 }
 
-function findPastProjections(text, pubDate) {
-  const matches = [];
-  // Look for "targets [year]", "slated for [year/Q]", "anticipated by [year]"
-  const projectionRegex = /(?:targets|slated for|scheduled for|anticipated by|in)\s+(?:early|late|mid|Q[1-4]\s+)?(202[2-5])/gi;
-  let match;
-  while ((match = projectionRegex.exec(text)) !== null) {
-    // Find enclosing sentence
-    const start = Math.max(0, text.lastIndexOf('.', match.index) + 1);
-    const end = text.indexOf('.', match.index);
-    const sentence = text.substring(start, end !== -1 ? end + 1 : undefined).trim();
-    if (sentence) {
-      matches.push(sentence);
-    }
-  }
-  return matches;
+function splitIntoSentences(text) {
+  if (!text) return [];
+  return text
+    .split(/(?<=[.?!])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 15);
 }

@@ -1,10 +1,10 @@
 /**
- * GROUNDED FACT EXTRACTOR ENGINE
- * Extracts key concrete factual claims and pairs them strictly with
- * their primary source citation, author, and publication timestamp.
+ * GROUNDED FACT & SOURCE EVIDENCE EXTRACTOR
+ * Extracts verifiable factual claims directly from the supplied text.
  * 
- * IMPORTANT: Clearly tagged as [DIRECT SOURCE EVIDENCE] to distinguish
- * verifiable source statements from AI inferences and gap hypotheses.
+ * INTEGRITY PRINCIPLE:
+ * Pairs each fact with the specific finding supported by that text,
+ * and transparently flags missing or unverifiable metadata (missing URL, missing date).
  */
 
 export function extractGroundedFacts(sources) {
@@ -13,30 +13,61 @@ export function extractGroundedFacts(sources) {
   const facts = [];
 
   sources.forEach(src => {
-    const sentences = src.content
+    const sentences = (src.content || "")
       .split(/(?<=[.?!])\s+/)
       .map(s => s.trim())
       .filter(s => s.length > 25);
 
-    // Look for sentences that contain measurable, concrete, or specific claims
-    sentences.forEach((sentence, idx) => {
-      const containsMetric = /\d/.test(sentence) || 
-                             /contract|budget|award|report|testing|protocol|measured|slated|targets/i.test(sentence);
+    // Analyze source metadata completeness
+    const isUrlProvided = Boolean(src.url && src.url.trim().length > 5);
+    const isDateProvided = Boolean(src.publishedDate && src.publishedDate.trim().length >= 4);
+    const isAuthorProvided = Boolean((src.author && src.author.trim().length > 2) || (src.publisher && src.publisher.trim().length > 2));
 
-      if (containsMetric) {
+    sentences.forEach((sentence, idx) => {
+      // Check if sentence contains verifiable factual signals (numbers, dates, currency, milestones, test results)
+      const hasMetric = /\d/.test(sentence);
+      const hasKeyword = /contract|budget|award|report|testing|protocol|measured|slated|targets|demonstrated|achieves|delayed|obligations|sensitivity|concordance/i.test(sentence);
+
+      if (hasMetric || hasKeyword) {
+        // Derive the specific finding supported by this text
+        let supportedFinding = "Direct factual assertion grounded in primary document.";
+
+        if (/\$\s*\d+/.test(sentence)) {
+          supportedFinding = "Financial expenditure, contract award, or program obligation figure.";
+        } else if (/\b(202[3-9]|2030)\b/.test(sentence)) {
+          supportedFinding = "Official target year, mission milestone, or schedule projection.";
+        } else if (/wh\/kg|%|cycles|concordance|sensitivity|false-negative/i.test(sentence)) {
+          supportedFinding = "Empirical technical performance, test accuracy, or battery degradation metric.";
+        } else if (/gao|panel|audit|oversight|fda|study/i.test(sentence)) {
+          supportedFinding = "Oversight audit finding or formal regulatory review observation.";
+        }
+
         facts.push({
           id: `fact-${src.id}-${idx}`,
           type: "DIRECT_SOURCE_EVIDENCE",
           badge: "SOURCE EVIDENCE",
           statement: sentence,
+          supportedFinding,
           sourceCitation: {
             sourceId: src.id,
-            title: src.title,
-            publisher: src.publisher,
-            author: src.author,
-            publishedDate: src.publishedDate || "Date unspecified",
+            title: src.title || "Untitled Document",
+            publisher: src.publisher || "Uncredited Publisher",
+            author: src.author || "Uncredited Author",
+            publishedDate: src.publishedDate || null,
             url: src.url || null,
-            reliabilityTier: src.reliabilityTier || "Unrated Source"
+            reliabilityTier: src.reliabilityTier || "Unrated Source",
+            isSample: Boolean(src.isSample),
+            isUserSource: Boolean(src.isUserSource)
+          },
+          metadataIntegrity: {
+            isUrlProvided,
+            isDateProvided,
+            isAuthorProvided,
+            missingNotices: [
+              !isUrlProvided ? "Citation link / URL missing" : null,
+              !isDateProvided ? "Publication date missing" : null,
+              !isAuthorProvided ? "Author attribution missing" : null
+            ].filter(Boolean)
           },
           verificationStatus: "Attributed to Source Document",
           isAiHypothesis: false

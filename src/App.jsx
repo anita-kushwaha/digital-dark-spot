@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { TopicHeader } from './components/TopicHeader';
 import { SourceManager } from './components/SourceManager';
@@ -19,44 +19,125 @@ import { extractGroundedFacts } from './engine/factExtractor';
 import { generateVerificationChecklist } from './engine/checklistGenerator';
 import { analyzeWithGemini } from './engine/geminiService';
 
+const STORAGE_KEYS = {
+  SOURCES: "dds_sources_v2",
+  TOPIC: "dds_topic_v2",
+  DOMAIN: "dds_domain_v2",
+  IS_SAMPLE: "dds_is_sample_v2",
+  BADGE: "dds_badge_v2",
+  SCENARIO_ID: "dds_scenario_id_v2",
+  CHECKLIST: "dds_checklist_v2",
+  API_KEY: "dds_gemini_api_key"
+};
+
 export default function App() {
-  // Scenario & Topic State (defaults to Artemis III sample scenario)
   const defaultScenario = SAMPLE_SCENARIOS[0];
-  const [topic, setTopic] = useState(defaultScenario.title);
-  const [domain, setDomain] = useState(defaultScenario.domain);
-  const [sources, setSources] = useState(defaultScenario.sources);
-  const [currentScenarioId, setCurrentScenarioId] = useState(defaultScenario.id);
-  const [isSample, setIsSample] = useState(true);
-  const [sampleBadgeText, setSampleBadgeText] = useState(defaultScenario.sampleBadgeText);
+
+  // Persistent Scenario & Topic State
+  const [topic, setTopic] = useState(() => {
+    return localStorage.getItem(STORAGE_KEYS.TOPIC) || defaultScenario.title;
+  });
+
+  const [domain, setDomain] = useState(() => {
+    return localStorage.getItem(STORAGE_KEYS.DOMAIN) || defaultScenario.domain;
+  });
+
+  const [sources, setSources] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.SOURCES);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.warn("Failed to parse saved sources:", e);
+      }
+    }
+    return defaultScenario.sources;
+  });
+
+  const [currentScenarioId, setCurrentScenarioId] = useState(() => {
+    return localStorage.getItem(STORAGE_KEYS.SCENARIO_ID) || defaultScenario.id;
+  });
+
+  const [isSample, setIsSample] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.IS_SAMPLE);
+    return saved !== null ? saved === "true" : true;
+  });
+
+  const [sampleBadgeText, setSampleBadgeText] = useState(() => {
+    return localStorage.getItem(STORAGE_KEYS.BADGE) || defaultScenario.sampleBadgeText;
+  });
 
   // Settings & Navigation State
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("dds_gemini_api_key") || "");
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem(STORAGE_KEYS.API_KEY) || "");
   const [activeTab, setActiveTab] = useState("gaps");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiErrorNotice, setAiErrorNotice] = useState(null);
+  const [aiNotice, setAiNotice] = useState(null);
 
   // Analytical Findings State
   const [gaps, setGaps] = useState([]);
   const [contradictions, setContradictions] = useState([]);
   const [temporalDrifts, setTemporalDrifts] = useState([]);
   const [facts, setFacts] = useState([]);
-  const [checklist, setChecklist] = useState([]);
+  const [checklist, setChecklist] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CHECKLIST);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.warn("Failed to parse saved checklist:", e);
+      }
+    }
+    return [];
+  });
+
+  // Keep localStorage synchronized
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SOURCES, JSON.stringify(sources));
+  }, [sources]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.TOPIC, topic);
+  }, [topic]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.DOMAIN, domain);
+  }, [domain]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.IS_SAMPLE, String(isSample));
+  }, [isSample]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.BADGE, sampleBadgeText);
+  }, [sampleBadgeText]);
+
+  useEffect(() => {
+    if (currentScenarioId) {
+      localStorage.setItem(STORAGE_KEYS.SCENARIO_ID, currentScenarioId);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.SCENARIO_ID);
+    }
+  }, [currentScenarioId]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.CHECKLIST, JSON.stringify(checklist));
+  }, [checklist]);
 
   // Core Engine Execution
-  const executeAnalysis = useCallback(async (currentSources, currentTopic, preserveChecklist = false) => {
+  const executeAnalysis = useCallback(async (currentSources, currentTopic, preserveChecklist = true) => {
     setIsAnalyzing(true);
-    setAiErrorNotice(null);
+    setAiNotice(null);
 
     try {
-      // 1. Run Built-In Local Heuristic Engines (always reliable & offline-capable)
       const detectedGaps = detectInformationGaps(currentSources, currentTopic);
       const detectedConflicts = detectContradictions(currentSources);
       const detectedTemporal = analyzeTemporalDrift(currentSources);
       const extractedFacts = extractGroundedFacts(currentSources);
 
-      // 2. Generate Actionable Verification Checklist
       const baseChecklist = generateVerificationChecklist(
         detectedGaps,
         detectedConflicts,
@@ -64,31 +145,34 @@ export default function App() {
         currentSources
       );
 
-      // If user provided a Gemini API Key, enhance findings with AI
+      // Optional Gemini Semantic Analysis
       if (apiKey && apiKey.trim().length > 10 && currentSources.length >= 2) {
         try {
           const aiResponse = await analyzeWithGemini(currentTopic, currentSources, apiKey);
           if (aiResponse && aiResponse.darkSpotGaps) {
-            // Append unique AI gaps
             aiResponse.darkSpotGaps.forEach((aiGap, i) => {
               detectedGaps.push({
                 id: `gap-gemini-${i}`,
-                type: "AI_HYPOTHESIZED_GAP",
+                type: "INFORMATION_GAP",
                 badge: "GEMINI 1.5 DEEP INFERENCE",
                 category: aiGap.category || "Semantic Narrative Gap",
                 urgency: aiGap.urgency || "High",
                 unansweredQuestion: aiGap.unansweredQuestion,
                 whyItMatters: aiGap.whyItMatters,
+                evidenceStatus: "missing",
+                evidenceSummary: "Identified via Gemini semantic cross-examination across documents.",
+                supportingEvidenceSnippet: null,
                 affectedSources: currentSources.map(s => s.title),
                 suggestedInvestigation: aiGap.suggestedInvestigation || "Investigate related primary documentation.",
                 isGroundedInSource: false,
-                aiRationale: "Identified via Gemini semantic cross-examination."
+                detectionMethod: "Gemini 1.5 Flash API"
               });
             });
+            setAiNotice("Gemini 1.5 successfully augmented the investigation with semantic inferences.");
           }
         } catch (apiErr) {
           console.warn("Gemini enhancement notice:", apiErr);
-          setAiErrorNotice(`Gemini key was not used (${apiErr.message}). Local engine provided all findings.`);
+          setAiNotice(`Note: Optional Gemini key call failed (${apiErr.message}). Local deterministic engine provided all findings.`);
         }
       }
 
@@ -97,24 +181,27 @@ export default function App() {
       setTemporalDrifts(detectedTemporal);
       setFacts(extractedFacts);
 
-      // Preserve existing user checks or notes if requested
-      if (preserveChecklist) {
-        setChecklist((prev) => {
-          const completedMap = new Map(prev.map(item => [item.id, { completed: item.completed, note: item.userNote }]));
-          const userCustoms = prev.filter(item => item.id.startsWith("check-custom-"));
-          
-          const merged = baseChecklist.map(item => {
-            const existing = completedMap.get(item.id);
-            if (existing) {
-              return { ...item, completed: existing.completed, userNote: existing.note };
-            }
-            return item;
-          });
-          return [...merged, ...userCustoms];
+      // Merge Checklist while preserving user completion state, notes, and custom tasks
+      setChecklist((prevList) => {
+        if (!preserveChecklist || prevList.length === 0) {
+          return baseChecklist;
+        }
+
+        const completedMap = new Map(
+          prevList.map(item => [item.id, { completed: item.completed, note: item.userNote }])
+        );
+        const userCustoms = prevList.filter(item => item.id.startsWith("check-custom-"));
+
+        const merged = baseChecklist.map(item => {
+          const existing = completedMap.get(item.id);
+          if (existing) {
+            return { ...item, completed: existing.completed, userNote: existing.note };
+          }
+          return item;
         });
-      } else {
-        setChecklist(baseChecklist);
-      }
+
+        return [...merged, ...userCustoms];
+      });
 
     } catch (err) {
       console.error("Analysis failure:", err);
@@ -123,18 +210,22 @@ export default function App() {
     }
   }, [apiKey]);
 
-  // Initial trigger on mount or sources change
+  // Initial trigger on mount
+  const isInitialMount = useRef(true);
   useEffect(() => {
-    executeAnalysis(sources, topic, false);
-  }, []);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      executeAnalysis(sources, topic, true);
+    }
+  }, [executeAnalysis, sources, topic]);
 
   // Save API key
   const handleSaveApiKey = (key) => {
     setApiKey(key);
-    localStorage.setItem("dds_gemini_api_key", key);
+    localStorage.setItem(STORAGE_KEYS.API_KEY, key);
   };
 
-  // Scenario selection
+  // Sample scenario selection
   const handleSelectSample = (scenarioId) => {
     const sc = SAMPLE_SCENARIOS.find(s => s.id === scenarioId);
     if (!sc) return;
@@ -161,13 +252,28 @@ export default function App() {
     setTemporalDrifts([]);
     setFacts([]);
     setChecklist([]);
+    localStorage.removeItem(STORAGE_KEYS.SOURCES);
+    localStorage.removeItem(STORAGE_KEYS.TOPIC);
+    localStorage.removeItem(STORAGE_KEYS.DOMAIN);
+    localStorage.removeItem(STORAGE_KEYS.IS_SAMPLE);
+    localStorage.removeItem(STORAGE_KEYS.BADGE);
+    localStorage.removeItem(STORAGE_KEYS.SCENARIO_ID);
+    localStorage.removeItem(STORAGE_KEYS.CHECKLIST);
   };
 
-  // Source CRUD
+  // Source CRUD Operations
   const handleAddSource = (newSource) => {
     const updated = [newSource, ...sources];
     setSources(updated);
-    setIsSample(false);
+    const hasAnySample = updated.some(s => s.isSample);
+    const hasAnyUser = updated.some(s => s.isUserSource);
+    if (hasAnyUser && !hasAnySample) {
+      setIsSample(false);
+      setSampleBadgeText("");
+    } else if (hasAnyUser && hasAnySample) {
+      setIsSample(true);
+      setSampleBadgeText("HYBRID DOSSIER (SAMPLE + USER SOURCES)");
+    }
     executeAnalysis(updated, topic, true);
   };
 
@@ -213,9 +319,9 @@ export default function App() {
   const checklistCompleted = checklist.filter(c => c.completed).length;
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-[#0a0f1d] text-slate-100 selection:bg-indigo-500 selection:text-white">
       
-      {/* Top Navigation */}
+      {/* Top Header Navigation */}
       <Navbar
         onSelectSample={handleSelectSample}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -225,97 +331,118 @@ export default function App() {
         currentScenarioId={currentScenarioId}
       />
 
-      {/* Main Investigation Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      {/* Centered, Responsive Content Container with Generous Spacing */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 space-y-8 lg:space-y-10">
         
-        {/* Notice for AI Fallback if relevant */}
-        {aiErrorNotice && (
-          <div className="mb-4 bg-slate-900 border border-amber-500/40 rounded-xl p-3 text-xs text-amber-300 flex items-center justify-between">
-            <span>{aiErrorNotice}</span>
-            <button onClick={() => setAiErrorNotice(null)} className="text-slate-400 hover:text-white ml-2">✕</button>
+        {/* Notice for AI Fallback or Status if relevant */}
+        {aiNotice && (
+          <div className="bg-slate-900 border border-indigo-500/40 rounded-xl p-3 text-xs text-indigo-300 flex items-center justify-between">
+            <span>{aiNotice}</span>
+            <button onClick={() => setAiNotice(null)} className="text-slate-400 hover:text-white ml-2 text-xs">✕</button>
           </div>
         )}
 
         {/* 1. Target Topic & Domain Header */}
-        <TopicHeader
-          topic={topic}
-          onTopicChange={setTopic}
-          domain={domain}
-          onDomainChange={setDomain}
-          isSample={isSample}
-          sampleBadgeText={sampleBadgeText}
-          onReset={handleReset}
-          sampleScenarios={SAMPLE_SCENARIOS}
-          onSelectSample={handleSelectSample}
-        />
+        <section>
+          <TopicHeader
+            topic={topic}
+            onTopicChange={setTopic}
+            domain={domain}
+            onDomainChange={setDomain}
+            isSample={isSample}
+            sampleBadgeText={sampleBadgeText}
+            onReset={handleReset}
+            sampleScenarios={SAMPLE_SCENARIOS}
+            onSelectSample={handleSelectSample}
+          />
+        </section>
 
         {/* 2. Source Management Section */}
-        <SourceManager
-          sources={sources}
-          onAddSource={handleAddSource}
-          onUpdateSource={handleUpdateSource}
-          onDeleteSource={handleDeleteSource}
-        />
+        <section>
+          <SourceManager
+            sources={sources}
+            onAddSource={handleAddSource}
+            onUpdateSource={handleUpdateSource}
+            onDeleteSource={handleDeleteSource}
+          />
+        </section>
 
-        {/* 3. Analysis Overview & Navigation Tabs */}
-        <AnalysisOverview
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          gapsCount={gaps.length}
-          contradictionsCount={contradictions.length}
-          outdatedCount={temporalDrifts.length}
-          factsCount={facts.length}
-          checklistTotal={checklist.length}
-          checklistCompleted={checklistCompleted}
-          onRunAnalysis={() => executeAnalysis(sources, topic, true)}
-          isAnalyzing={isAnalyzing}
-        />
+        {/* 3. Analysis Navigation & Results */}
+        <section className="space-y-6">
+          <AnalysisOverview
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            gapsCount={gaps.length}
+            contradictionsCount={contradictions.length}
+            outdatedCount={temporalDrifts.length}
+            factsCount={facts.length}
+            checklistTotal={checklist.length}
+            checklistCompleted={checklistCompleted}
+            onRunAnalysis={() => executeAnalysis(sources, topic, true)}
+            isAnalyzing={isAnalyzing}
+            isAiActive={Boolean(apiKey && apiKey.trim().length > 10)}
+            sourcesCount={sources.length}
+          />
 
-        {/* 4. Tab Content Area */}
-        <div className="pb-16">
-          {activeTab === "gaps" && (
-            <GapAnalysisTab gaps={gaps} topic={topic} />
-          )}
+          {/* 4. Tab Content Area */}
+          <div className="pt-2">
+            {activeTab === "gaps" && (
+              <GapAnalysisTab 
+                gaps={gaps} 
+                topic={topic} 
+                sourcesCount={sources.length} 
+              />
+            )}
 
-          {activeTab === "contradictions" && (
-            <ContradictionTab contradictions={contradictions} />
-          )}
+            {activeTab === "contradictions" && (
+              <ContradictionTab 
+                contradictions={contradictions} 
+                sourcesCount={sources.length} 
+              />
+            )}
 
-          {activeTab === "temporal" && (
-            <TemporalTab temporalDrifts={temporalDrifts} sources={sources} />
-          )}
+            {activeTab === "temporal" && (
+              <TemporalTab 
+                temporalDrifts={temporalDrifts} 
+                sources={sources} 
+              />
+            )}
 
-          {activeTab === "facts" && (
-            <FactSheetTab facts={facts} />
-          )}
+            {activeTab === "facts" && (
+              <FactSheetTab 
+                facts={facts} 
+                sourcesCount={sources.length} 
+              />
+            )}
 
-          {activeTab === "checklist" && (
-            <VerificationChecklist
-              checklist={checklist}
-              onToggleComplete={handleToggleChecklist}
-              onAddCustomTask={handleAddCustomTask}
-              onDeleteTask={handleDeleteTask}
-              onUpdateNote={handleUpdateNote}
-            />
-          )}
-        </div>
+            {activeTab === "checklist" && (
+              <VerificationChecklist
+                checklist={checklist}
+                onToggleComplete={handleToggleChecklist}
+                onAddCustomTask={handleAddCustomTask}
+                onDeleteTask={handleDeleteTask}
+                onUpdateNote={handleUpdateNote}
+              />
+            )}
+          </div>
+        </section>
 
       </main>
 
-      {/* Footer with Integrity Pledge */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* Footer */}
+      <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-center text-xs text-slate-500 mt-12">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-400">Digital Dark Spot</span>
             <span>—</span>
-            <span>AI-Assisted Information Gap Detection</span>
+            <span>AI-Assisted Information Gap Detection Platform</span>
           </div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-500">
-            <span>Grounding-First Integrity Architecture</span>
+          <div className="flex items-center gap-3 text-[11px] text-slate-500">
+            <span>Grounding-First Integrity</span>
             <span>•</span>
-            <span>No Hallucinated Citations</span>
+            <span>Zero Hallucinated URLs</span>
             <span>•</span>
-            <span>Local Offline Engine Included</span>
+            <span>Offline Deterministic Engine</span>
           </div>
         </div>
       </footer>

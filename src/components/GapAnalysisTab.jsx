@@ -1,14 +1,16 @@
 import React from 'react';
-import { EyeOff, AlertCircle, HelpCircle, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
+import { EyeOff, AlertCircle, ArrowRight, FileText, CheckCircle2 } from 'lucide-react';
 
-export function GapAnalysisTab({ gaps, topic }) {
+export function GapAnalysisTab({ gaps, topic, sourcesCount }) {
   if (!gaps || gaps.length === 0) {
     return (
-      <div className="glass-panel p-10 text-center">
-        <EyeOff className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-        <h3 className="text-base font-semibold text-slate-200">No Information Gaps Detected</h3>
+      <div className="glass-panel p-8 sm:p-12 text-center">
+        <CheckCircle2 className="w-9 h-9 text-emerald-500 mx-auto mb-2.5" />
+        <h3 className="text-sm font-semibold text-slate-200">No Critical Gaps Detected</h3>
         <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-          The ingested sources appear to cover major core dimensions. Ingest more documents or add specific queries to find subtle blind spots.
+          {sourcesCount < 2 
+            ? "At least 2 sources are needed to detect multi-source coverage gaps and blind spots." 
+            : "The ingested sources provide adequate coverage across key operational dimensions."}
         </p>
       </div>
     );
@@ -17,77 +19,91 @@ export function GapAnalysisTab({ gaps, topic }) {
   return (
     <div className="space-y-4">
       
-      {/* Integrity Disclaimer Banner */}
-      <div className="bg-purple-950/40 border border-purple-500/30 rounded-xl p-4 flex items-start gap-3">
-        <Sparkles className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-        <div className="text-xs text-purple-200 leading-relaxed">
-          <strong className="font-semibold text-white">WHAT IS A DIGITAL DARK SPOT?</strong>
-          <p className="text-purple-300 mt-0.5">
-            A "Digital Dark Spot" represents critical information, edge cases, or failure modes that are completely missing across all ingested sources.
-            Items below are <span className="underline font-semibold text-white">AI-hypothesized investigative questions</span> designed to direct human inquiry, not verified facts.
-          </p>
+      {/* Calm Briefing Note */}
+      <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 flex items-start gap-3">
+        <EyeOff className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <div className="text-xs text-slate-300 leading-relaxed">
+          <span className="font-semibold text-white">Digital Dark Spots: </span>
+          <span>
+            These represent operational dimensions, boundary conditions, or failure modes insufficiently addressed across the supplied documents.
+          </span>
         </div>
       </div>
 
-      {/* Grid of Gaps */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Spacious 2-Column Responsive Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
         {gaps.map((gap, idx) => (
           <div
             key={gap.id || idx}
-            className="glass-card p-5 border-purple-900/40 bg-slate-900/80 hover:border-purple-500/50 flex flex-col justify-between relative overflow-hidden"
+            className="glass-card p-4 sm:p-5 flex flex-col justify-between border-slate-800 hover:border-slate-700"
           >
-            {/* Top Tag & Urgency */}
             <div>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="font-mono text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800">
-                  {gap.badge || "AI HYPOTHESIZED GAP"}
+              {/* Category & Urgency */}
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                  {gap.category}
                 </span>
 
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                     gap.urgency === "High"
-                      ? "bg-rose-950/80 text-rose-300 border border-rose-700/60"
-                      : "bg-amber-950/80 text-amber-300 border border-amber-700/60"
+                      ? "bg-rose-950/60 text-rose-300 border-rose-800/60"
+                      : "bg-amber-950/60 text-amber-300 border-amber-800/60"
                   }`}
                 >
-                  {gap.urgency} Priority Blind Spot
+                  {gap.urgency} Priority Gap
                 </span>
               </div>
 
-              {/* Category */}
-              <div className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                {gap.category}
-              </div>
-
               {/* The Unanswered Question */}
-              <h4 className="text-sm sm:text-base font-bold text-white mb-2 leading-snug">
+              <h4 className="text-sm font-semibold text-white mb-2 leading-snug">
                 "{gap.unansweredQuestion}"
               </h4>
 
               {/* Why It Matters */}
-              <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-300 mb-3 space-y-1.5">
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 text-xs text-slate-300 mb-3 space-y-2">
                 <div>
-                  <strong className="text-purple-300 font-semibold">Why this is a blind spot: </strong>
-                  <span>{gap.whyItMatters}</span>
+                  <span className="text-purple-300 font-medium">Why this is an information gap: </span>
+                  <span className="text-slate-300">{gap.whyItMatters}</span>
                 </div>
-                {gap.aiRationale && (
-                  <div className="text-slate-400 text-[11px] pt-1.5 border-t border-slate-800/60">
-                    <strong className="text-slate-300">Evidence Audit: </strong>
-                    <span>{gap.aiRationale}</span>
-                  </div>
-                )}
+
+                {/* Evidence Status Callout */}
+                <div className="pt-2 border-t border-slate-800/60">
+                  {gap.evidenceStatus === "missing" ? (
+                    <div className="flex items-start gap-1.5 text-rose-300/90 text-[11px]">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                      <span>
+                        <strong className="text-rose-200">Evidence Status: </strong>
+                        {gap.evidenceSummary || "No supporting evidence found in any supplied source."}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-1 text-[11px]">
+                      <div className="flex items-start gap-1.5 text-amber-300/90">
+                        <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-amber-200">Partial Mention: </strong>
+                          {gap.evidenceSummary}
+                        </span>
+                      </div>
+                      {gap.supportingEvidenceSnippet && (
+                        <blockquote className="text-slate-400 italic pl-2.5 border-l-2 border-amber-500/40 py-0.5 mt-1 text-[11px]">
+                          {gap.supportingEvidenceSnippet}
+                        </blockquote>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Suggested Action */}
-            <div className="pt-3 border-t border-slate-800/80">
-              <div className="flex items-start gap-2 text-xs text-sky-300">
-                <ArrowRight className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="font-semibold text-sky-200">Recommended Investigation: </strong>
-                  <span>{gap.suggestedInvestigation}</span>
-                </div>
+            {/* Recommended Next Step */}
+            <div className="pt-2.5 border-t border-slate-800/80 flex items-start gap-1.5 text-xs text-sky-300">
+              <ArrowRight className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-medium text-sky-200">Recommended Action: </span>
+                <span className="text-slate-300">{gap.suggestedInvestigation}</span>
               </div>
             </div>
 
