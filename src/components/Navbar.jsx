@@ -13,10 +13,10 @@ export function Navbar({ onSelectSample, onOpenSettings, onOpenExport, isAiActiv
           </div>
 
           <div className="flex items-baseline gap-2.5">
-            <span className="font-bold text-base tracking-tight text-white">Digital Dark Spot</span>
+            <span className="font-bold text-base tracking-tight text-white">Truthora</span>
             <span className="text-xs text-slate-400 hidden md:inline font-normal">
-              AI-Assisted Information Gap Detection
-            </span>
+              Uncover the Gaps. Discover the Truth.
+               </span>
           </div>
         </div>
 

@@ -433,7 +433,7 @@ export default function App() {
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-center text-xs text-slate-500 mt-12">
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-400">Digital Dark Spot</span>
+            <span className="font-semibold text-slate-400">Truthora</span>
             <span>—</span>
             <span>AI-Assisted Information Gap Detection Platform</span>
           </div>

@@ -1,7 +1,9 @@
-# 🌌 Digital Dark Spot — AI-Assisted Information Gap Detection Platform
+# 🔍 Truthora — AI-Assisted Information Gap Detection Platform
 
-> **Official Hackathon Topic:** AI-Assisted Information Gap Detection Platform  
-> **Mission:** Most AI platforms merely summarize what is already stated in documents. **Digital Dark Spot** does the critical opposite: it exposes what is **missing**, cross-examines **contradictions**, highlights **outdated claims**, grounds verified **evidence**, and equips researchers with an actionable **verification checklist**.
+> **"Uncover the Gaps. Discover the Truth."**
+
+> **Official Hackathon Theme:** Digital Dark Spot  
+> **Mission:** Most AI platforms merely summarize what is already stated in documents. **Truthora** does the critical opposite: it exposes what is **missing**, cross-examines **contradictions**, highlights **outdated claims**, grounds verified **evidence**, and equips researchers with an actionable **verification checklist**.
 
 ---
 
@@ -119,6 +121,6 @@ digital-dark-spot/
 
 ## 🏆 Hackathon Presentation Tips
 When presenting to judges:
-1. **Emphasize the Core Philosophy:** Explain that most AI projects merely summarize; Digital Dark Spot solves the harder, more critical problem of finding **what is missing or contradicted**.
+1. **Emphasize the Core Philosophy:** Explain that most AI projects merely summarize; Truthora solves the harder, more critical problem of finding **what is missing or contradicted**.
 2. **Showcase Grounding Integrity:** Point out that all AI hypotheses are labeled with purple badges (`[AI HYPOTHESIZED GAP]`), while factual statements are labeled with emerald badges (`[SOURCE EVIDENCE]`) citing verbatim source paragraphs.
 3. **Demonstrate Interactivity:** Check off tasks in the Verification Checklist, add a custom note, add a new source, and click "Export Report" to show a polished end-to-end workflow.

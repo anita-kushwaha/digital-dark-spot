@@ -12,7 +12,7 @@ export async function analyzeWithGemini(topic, sources, apiKey) {
     throw new Error("No Gemini API key provided. Using built-in local analytical engine instead.");
   }
 
-  const prompt = `You are the core analysis engine for "Digital Dark Spot", an information gap detection platform.
+  const prompt = `You are the core analysis engine for "Truthora", an AI-Assisted Information Gap Detection Platform.
 Analyze the following multi-source dossier regarding the topic: "${topic}".
 
 STRICT INVESTIGATIVE RULES:

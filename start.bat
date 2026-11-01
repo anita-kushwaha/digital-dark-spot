@@ -1,6 +1,6 @@
 @echo off
 echo ========================================================
-echo   Starting Digital Dark Spot (Hackathon Platform)
+echo   Starting Truthora (AI-Assisted Information Gap Detection Platform)
 echo ========================================================
 echo.
 echo Launching Vite development server at http://localhost:5173 ...

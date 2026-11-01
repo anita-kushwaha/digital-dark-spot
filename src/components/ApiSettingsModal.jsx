@@ -51,7 +51,7 @@ export function ApiSettingsModal({ isOpen, onClose, apiKey, onSaveKey }) {
           <div className="flex items-start gap-2 text-indigo-300">
             <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
             <span>
-              <strong>Zero-Setup Guarantee:</strong> Digital Dark Spot includes a complete built-in heuristic analysis engine that works 100% offline without any API key or subscription.
+              <strong>Zero-Setup Guarantee:</strong> Truthora includes a complete built-in heuristic analysis engine that works 100% offline without any API key or subscription.
             </span>
           </div>
           <div className="flex items-start gap-2 text-purple-300 pt-2 border-t border-slate-800/80">

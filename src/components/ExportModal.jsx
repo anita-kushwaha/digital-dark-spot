@@ -26,7 +26,7 @@ export function ExportModal({
   // Generate Comprehensive Markdown Dossier
   const generateMarkdown = () => {
     return `# DIGITAL DARK SPOT â€” INVESTIGATIVE BRIEFING DOSSIER
-**Platform:** Digital Dark Spot (AI-Assisted Information Gap & Contradiction Detection)  
+**Platform:** Truthora — AI-Assisted Information Gap Detection Platform  
 **Investigation Topic:** ${topic || "General Investigative Analysis"}  
 **Domain Focus:** ${domain || "General"}  
 **Export Timestamp:** ${exportTimestamp}  
@@ -120,7 +120,7 @@ ${checklist.length === 0 ? "_No pending verification tasks._" : checklist.map((i
 1. **Absence of Evidence vs. Evidence of Absence:** An identified "Digital Dark Spot" indicates that the supplied text did not provide sufficient answers. It does not prove that the underlying system or organization lacks this capability in unpublished records.
 2. **Context & Scope Nuance:** Discrepancies flagged as "Needs Manual Verification" often involve differing accounting frameworks, measurement methodologies, or timeline definitions rather than deliberate deceit.
 3. **Temporal Freshness:** Analysis is strictly bound to the publication timestamps provided in the source documents. If dates are omitted or inaccurate, chronological sequence cannot be guaranteed.
-4. **Human Verification Requirement:** This platform is designed to assist and direct investigative inquiry, not replace primary document auditing and subject matter expert review.
+4. **Human Verification Requirement:** Truthora is designed to assist and direct investigative inquiry, not replace primary document auditing and subject matter expert review.
 `;
   };
 
@@ -128,7 +128,7 @@ ${checklist.length === 0 ? "_No pending verification tasks._" : checklist.map((i
   const generateJSON = () => {
     return JSON.stringify({
       metadata: {
-        platform: "Digital Dark Spot",
+        platform: "Truthora",
         investigationTopic: topic,
         domain,
         exportTimestamp,
